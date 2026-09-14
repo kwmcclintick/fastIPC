@@ -33,14 +33,16 @@ int main(int argc, const char* argv[]) {
         MarketMMAP* ring = ::new (mm_ptr) MarketMMAP{};
         // write
         uint64_t w_idx = ring->write_idx.load(std::memory_order_relaxed);        
+        uint64_t r_idx_cache = ring->read_idx.load(std::memory_order_acquire);
         for( uint32_t i = 0; i < 1'000'000; ++i ) {
 
             // wait for reader to catch up
-            while( w_idx - ring->read_idx.load(std::memory_order_acquire) >= 1024 ) asm volatile("pause" ::: "memory");
-            
+            if( w_idx - r_idx_cache >= 1024 ) {
+                while( w_idx - (r_idx_cache = ring->read_idx.load(std::memory_order_acquire) ) >= 1024 ) asm volatile("pause" ::: "memory");
+            }
             // do the write
             uint64_t slot = w_idx & 1023;
-	    ::new (&ring->buffer[slot]) MarketUpdatePOD{12742934,i,{'A','P','P','L','\0','\0','\0','\0'},1,24,'B',1}; 
+	    ring->buffer[slot] = MarketUpdatePOD{12742934,i,{'A','P','P','L','\0','\0','\0','\0'},1,24,'B',1}; 
             w_idx++;
             ring->write_idx.store(w_idx, std::memory_order_release);
         }
@@ -58,11 +60,13 @@ int main(int argc, const char* argv[]) {
         MarketMMAP *ring = reinterpret_cast<MarketMMAP *>( mm_ptr );
         // read
         uint64_t r_idx = ring->read_idx.load(std::memory_order_relaxed);
+        uint64_t w_idx_cache = ring->write_idx.load(std::memory_order_acquire);
         for( int i = 0; i < 1'000'000; ++i ) {
 
             // wait for writes
-            while( ring->write_idx.load(std::memory_order_acquire) <= r_idx ) asm volatile("pause" ::: "memory");
-
+            if( w_idx_cache == r_idx) {
+                while( (w_idx_cache = ring->write_idx.load(std::memory_order_acquire) ) == r_idx ) asm volatile("pause" ::: "memory");
+            }
             uint64_t slot = r_idx & 1023;
             MarketUpdatePOD* mu_pod = &ring->buffer[slot];
             //std::println(std::cout, "POD {}: {}", i, ring->buffer[slot]);
