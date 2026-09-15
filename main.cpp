@@ -54,11 +54,11 @@ int writerMain() {
             }
 
 	    // Determine the sequence number with random drops
-	    uint32_t current_seq = ++seq_num;
-	    int r = rand() % 10'000'000;
-	    if (r == 0) {
-		seq_num += rand() % 100 + 1;       // Simulates a skip ahead (drop) of 1-100 items
-	    }
+            uint32_t current_seq = ++seq_num;
+            int r = rand() % 10'000'000;
+            if (r == 0) {
+                seq_num += rand() % 100 + 1;       // Simulates a skip ahead (drop) of 1-100 items
+            }
 
             // do the write in-place
             uint64_t slot = w_idx & (ring_size-1);
