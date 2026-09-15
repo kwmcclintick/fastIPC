@@ -49,7 +49,8 @@ int writerMain() {
         for( uint32_t i = 0; i < knLoops; ++i ) {
 
             // wait for reader to catch up
-            // overflow sanity check example: w_idx=0, r_idx=((2<<64)-10), result should be false, don't spin. Acutal: 0 - ((2<<64)-10) = 10, which is less than ring size. correct!
+            // overflow sanity check example: w_idx=0, r_idx=~((uint64_t)0)-10, result should be false, don't spin. Actual: 0 - (max-10) overflows to 10, which is less than ring size.
+            // we get false, then, which is correct!
             if( w_idx - r_idx_cache >= ring_size ) {
                 while( w_idx - (r_idx_cache = ring->read_idx_.load(std::memory_order_acquire) ) >= ring_size ) asm volatile("pause" ::: "memory");
             }
@@ -101,6 +102,9 @@ int readerMain() {
         for( int i = 0; i < knLoops; ++i ) {
 
             // wait for writes
+            // it's tempting to use <= here to catch cases where the reader is not just at the writer but ahead of it
+            // if we did that, we need to consider overflow. Example: w_idx = ~((uint64_t)0) - 10, r_idx = 0, reader is 10 ahead of the writer! We want true, to spin
+            // Actual: max-10 <= 0 is false, so we don't spin. Doesn't work! We need to use == and make sure our atomics don't allow races 
             if( w_idx_cache == r_idx) {
                 while( (w_idx_cache = ring->write_idx_.load(std::memory_order_acquire) ) == r_idx ) asm volatile("pause" ::: "memory");
             }
