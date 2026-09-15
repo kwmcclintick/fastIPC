@@ -50,10 +50,17 @@ int writerMain() {
             if( w_idx - r_idx_cache >= ring_size ) {
                 while( w_idx - (r_idx_cache = ring->read_idx_.load(std::memory_order_acquire) ) >= ring_size ) asm volatile("pause" ::: "memory");
             }
-            // do the write
+
+	    // Determine the sequence number with random drops
+	    uint32_t current_seq = ++seq_num;
+	    int r = rand() % 10'000'000;
+	    if (r == 0) {
+		seq_num += rand() % 100 + 1;       // Simulates a skip ahead (drop) of 1-100 items
+	    }
+
+            // do the write in-place
             uint64_t slot = w_idx & (ring_size-1);
-            seq_num = (i % 10'000'000 == 0) ? seq_num + 31 : seq_num + 1; // simulate occasional drops: 30 structs every 10M writes
-	    ring->buffer_[slot] = MarketUpdatePOD{1994,seq_num,{'A','P','P','L','\0','\0','\0','\0'},1,24,'B',1}; // dummy market data
+	    ring->buffer_[slot] = MarketUpdatePOD{1994,current_seq,{'A','P','P','L','\0','\0','\0','\0'},1,24,'B',1}; // dummy market data
             w_idx++;
             ring->write_idx_.store(w_idx, std::memory_order_release);
         }
