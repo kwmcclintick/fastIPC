@@ -16,6 +16,7 @@
 const char* kshmName = "/shared_memory";
 constexpr size_t kshmSize = sizeof(MarketMMAP);
 constexpr uint32_t knLoops = 1'000'000;
+constexpr size_t kexpectedVersion = 1;
 
 int writerMain() {
         // open shm
@@ -33,18 +34,23 @@ int writerMain() {
             return 1;
         }
         MarketMMAP* ring = ::new (kmmPtr) MarketMMAP{};
+        if( ring->version_ != kexpectedVersion ) {
+            std::println(std::cerr, "Expected ring buffer version v{}, instead got v{}", kexpectedVersion, ring->version_);
+            return 1;
+        }
+        size_t ring_size = std::size(ring->buffer_);
         // write
         uint64_t w_idx = ring->write_idx_.load(std::memory_order_relaxed);        
         uint64_t r_idx_cache = ring->read_idx_.load(std::memory_order_acquire);
         for( uint32_t i = 0; i < knLoops; ++i ) {
 
             // wait for reader to catch up
-            if( w_idx - r_idx_cache >= kringSize ) {
-                while( w_idx - (r_idx_cache = ring->read_idx_.load(std::memory_order_acquire) ) >= kringSize ) asm volatile("pause" ::: "memory");
+            if( w_idx - r_idx_cache >= ring_size ) {
+                while( w_idx - (r_idx_cache = ring->read_idx_.load(std::memory_order_acquire) ) >= ring_size ) asm volatile("pause" ::: "memory");
             }
             // do the write
-            uint64_t slot = w_idx & (kringSize-1);
-	    ring->buffer[slot] = MarketUpdatePOD{10000+i,i,{'A','P','P','L','\0','\0','\0','\0'},1,24,'B',1}; 
+            uint64_t slot = w_idx & (ring_size-1);
+	    ring->buffer_[slot] = MarketUpdatePOD{100*i,i,{'A','P','P','L','\0','\0','\0','\0'},1,24,'B',1}; // dummy market data
             w_idx++;
             ring->write_idx_.store(w_idx, std::memory_order_release);
         }
@@ -69,6 +75,11 @@ int readerMain() {
             return 1;
         }
         MarketMMAP *ring = reinterpret_cast<MarketMMAP *>( kmmPtr );
+        if( ring->version_ != kexpectedVersion ) {
+            std::println(std::cerr, "Expected ring buffer version v{}, instead got v{}", kexpectedVersion, ring->version_);
+            return 1;
+        }
+        size_t ring_size = std::size(ring->buffer_);
         // read
         uint64_t r_idx = ring->read_idx_.load(std::memory_order_relaxed);
         uint64_t w_idx_cache = ring->write_idx_.load(std::memory_order_acquire);
@@ -78,9 +89,13 @@ int readerMain() {
             if( w_idx_cache == r_idx) {
                 while( (w_idx_cache = ring->write_idx_.load(std::memory_order_acquire) ) == r_idx ) asm volatile("pause" ::: "memory");
             }
-            uint64_t slot = r_idx & (kringSize-1);
-            MarketUpdatePOD* mu_pod = &ring->buffer[slot];
-            //std::println(std::cout, "POD {}: {}", i, ring->buffer[slot]);
+            uint64_t slot = r_idx & (ring_size-1);
+
+            // Process market data here
+            MarketUpdatePOD mu_pod = ring->buffer_[slot];
+            std::println(std::cout, "POD {}: {}", i, mu_pod);
+            // end process here
+
             r_idx++;
             ring->read_idx_.store(r_idx, std::memory_order_release);
         }

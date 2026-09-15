@@ -16,12 +16,15 @@ struct alignas(64) MarketUpdatePOD {
 
 
 template <>
-struct std::formatter<MarketUpdatePOD> {
+struct std::formatter<MarketUpdatePOD> : std::formatter<std::string_view> {
     auto format(const MarketUpdatePOD& msg, std::format_context& ctx) const {
-        // Convert the char array to a clean string_view safely
+        // Find the actual length of the symbol string if it's null-terminated early
+        // otherwise default to 8 chars
         std::string_view sym(msg.symbol_, 8);
-        
-        // Use format_to to pipe the fields sequentially into the output context buffer
+        if (auto null_pos = sym.find('\0'); null_pos != std::string_view::npos) {
+            sym = sym.substr(0, null_pos);
+        }
+
         return std::format_to(ctx.out(),
             "MarketUpdate:\n"
             "  Timestamp: {} ns\n"
@@ -37,7 +40,7 @@ struct std::formatter<MarketUpdatePOD> {
             msg.price_fixed_,
             msg.quantity_,
             msg.side_,
-            static_cast<int>(msg.update_type_) // Cast uint8_t so it prints as a number, not a char
+            static_cast<int>(msg.update_type_)
         );
     }
 };
