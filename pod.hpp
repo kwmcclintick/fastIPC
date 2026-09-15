@@ -14,7 +14,10 @@ struct alignas(64) MarketUpdatePOD {
     uint8_t  update_type_;   // 1 = New, 2 = Modify, 3 = Cancel
 };
 
-
+// this is how std::print is taught to print a struct
+// it's a lot of boilerplate, but it's a lot more ergonomic and higher performance than sstream with operator<< overridden
+// and printf pollutes call sites by having to specify every field every time. maybe you could get around that with macros
+// but i hate macros
 template <>
 struct std::formatter<MarketUpdatePOD> : std::formatter<std::string_view> {
     auto format(const MarketUpdatePOD& msg, std::format_context& ctx) const {
