@@ -1,6 +1,7 @@
 #include "pod.hpp"
 #include "ipc_ring.hpp"
 
+#include <signal.h>
 #include <cstring>
 #include <print>
 #include <cstddef>
@@ -33,7 +34,7 @@ int writerMain() {
             close(kfd); shm_unlink(kshmName); // cleanup
             return 1;
         }
-        MarketMMAP* ring = ::new (kmmPtr) MarketMMAP{};
+        MarketMMAP* ring = ::new (kmmPtr) MarketMMAP( getpid() );
         if( ring->version_ != kexpectedVersion ) {
             std::println(std::cerr, "Expected ring buffer version v{}, instead got v{}", kexpectedVersion, ring->version_);
             munmap(kmmPtr, kshmSize); close(kfd); shm_unlink(kshmName); // cleanup
@@ -108,7 +109,8 @@ int readerMain() {
             if( i != 0 && seq_num != last_seq_num + 1 ) { // detect a gap in seq numbers.
                 // just log for now, but maybe a limit order book or something would do something with this info
                 // we could also need to reorder this for UDP
-                std::println(std::cerr, "Expected seq_num {}, but got {}. Lost {} PODs of data!", last_seq_num+1, seq_num, seq_num - (last_seq_num+1) );
+                std::println(std::cerr, "Expected seq_num {}, but got {}. Lost {} PODs of data! Producer PID={}, alive={}",
+                    last_seq_num+1, seq_num, seq_num - (last_seq_num+1), ring->producer_pid_, kill(ring->producer_pid_, 0) == 0 );
             }
             last_seq_num = seq_num;
             // optional printing of market data, but this will slow down the consumer significantly
