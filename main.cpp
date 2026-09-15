@@ -16,7 +16,7 @@
 const char* kshmName = "/shared_memory";
 constexpr size_t kshmSize = sizeof(MarketMMAP);
 constexpr uint32_t knLoops = 100'000'000;
-constexpr size_t kexpectedVersion = 1;
+constexpr size_t kexpectedVersion = 2;
 
 int writerMain() {
         // open shm
