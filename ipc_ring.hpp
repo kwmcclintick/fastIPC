@@ -6,7 +6,7 @@
 struct alignas(64) MarketMMAP {
     // metadata
     size_t version_{1};
-    // core, functional members
+    alignas(64) // core, functional members
     alignas(64) std::atomic<uint64_t> write_idx_{0};
     alignas(64) std::atomic<uint64_t> read_idx_{0};
     alignas(64) MarketUpdatePOD buffer_[1024];

@@ -15,7 +15,7 @@
 
 const char* kshmName = "/shared_memory";
 constexpr size_t kshmSize = sizeof(MarketMMAP);
-constexpr uint32_t knLoops = 1'000'000;
+constexpr uint32_t knLoops = 100'000;
 constexpr size_t kexpectedVersion = 1;
 
 int writerMain() {
@@ -23,7 +23,7 @@ int writerMain() {
         const int kfd = shm_open(kshmName, O_CREAT | O_RDWR, 0666);
         if( kfd == -1 ) {
             std::println(std::cerr, "Failed to oepn_shm");
-            return 1;
+            return 1; // no cleanup to do
         }
         // truncate
         ftruncate(kfd, kshmSize);
@@ -31,11 +31,13 @@ int writerMain() {
         void* const kmmPtr = mmap(NULL, kshmSize, PROT_WRITE | PROT_READ, MAP_SHARED, kfd, 0);
         if( kmmPtr == MAP_FAILED) {
             std::println(std::cerr, "Failed to mmap");
+            close(kfd); shm_unlink(kshmName); // cleanup
             return 1;
         }
         MarketMMAP* ring = ::new (kmmPtr) MarketMMAP{};
         if( ring->version_ != kexpectedVersion ) {
             std::println(std::cerr, "Expected ring buffer version v{}, instead got v{}", kexpectedVersion, ring->version_);
+            munmap(kmmPtr, kshmSize); close(kfd); shm_unlink(kshmName); // cleanup
             return 1;
         }
         size_t ring_size = std::size(ring->buffer_);
@@ -55,9 +57,7 @@ int writerMain() {
             ring->write_idx_.store(w_idx, std::memory_order_release);
         }
         // cleanup
-        munmap(kmmPtr, kshmSize);
-        close(kfd);
-        shm_unlink(kshmName);
+        munmap(kmmPtr, kshmSize); close(kfd); shm_unlink(kshmName);
         return 0;
 }
 
@@ -66,17 +66,19 @@ int readerMain() {
         const int kfd = shm_open(kshmName, O_RDWR, 0666);
         if( kfd == -1 ) {
             std::println(std::cerr, "Failed to shm_open");
-            return 1;
+            return 1; // no cleanup to do
         }
         // mmap
         void* const kmmPtr = mmap(NULL, kshmSize, PROT_WRITE | PROT_READ, MAP_SHARED, kfd, 0);
         if( kmmPtr == MAP_FAILED) {
             std::println(std::cerr, "Failed to mmap");
+            close(kfd); // cleanup
             return 1;
         }
         MarketMMAP *ring = reinterpret_cast<MarketMMAP *>( kmmPtr );
         if( ring->version_ != kexpectedVersion ) {
             std::println(std::cerr, "Expected ring buffer version v{}, instead got v{}", kexpectedVersion, ring->version_);
+            munmap(kmmPtr, kshmSize); close(kfd); // cleanup
             return 1;
         }
         size_t ring_size = std::size(ring->buffer_);
@@ -100,8 +102,7 @@ int readerMain() {
             ring->read_idx_.store(r_idx, std::memory_order_release);
         }
         // cleanup
-        munmap(kmmPtr, kshmSize);
-        close(kfd);
+        munmap(kmmPtr, kshmSize); close(kfd);
         return 0;
 }
 
