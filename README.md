@@ -9,10 +9,17 @@ importantly, the producer constructs data in-place in the mmap, and the reader v
 This simple program can be ran as:
 
 ```bash
-./main write
-# in another window:
+# consumer process
 ./main read
+# in some other windows, run some producer processes
+./main write
+./main write
+./main write
 ```
+
+Current `main` is hard coded to expect three writes to run before the owning reader exits.
+
+Producers mark a ring as busy, but the consumer separately keeps track of that as well. Killing a producer and starting a new one is ok.
 
 Actually using the data is out of scope, right now it's just optionally read into a print statement.
 
@@ -20,14 +27,13 @@ Actually using the data is out of scope, right now it's just optionally read int
 
  - Versioning for the ring buffer and a check that aborts if the version is not what's expected
  - Future-proofing buffer and static assert for the ring buffer
- - Simple check + logging in the reader to see if the writer's sequence number jumps ahead
- - Producer writes PID to ring buffer and consumer checks status when there's a drop
+ - MPSC (multiple market feeds)
 
 ## Future Work
 
-- UDP re-ordering given sequence number without redundant copys to a staging buffer
-- RAII for mmap and shm. Right now they're carefully cleaned up at all returns, but would be cool to not have to manage that.
-- MPSC (multiple market feeds)
+ - Simple check + logging in the reader to see if the writer's sequence number jumps ahead
+ - UDP re-ordering given sequence number without redundant copys to a staging buffer
+ - RAII for mmap, shm, and busy. Right now they're carefully cleaned up at all returns, but would be cool to not have to manage that. Right now if you kill a writer, the ring is permanently marked as busy.
 
 # Build
 
