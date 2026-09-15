@@ -48,6 +48,7 @@ int writerMain() {
         for( uint32_t i = 0; i < knLoops; ++i ) {
 
             // wait for reader to catch up
+            // overflow sanity check example: w_idx=0, r_idx=((2<<64)-10), result should be false, don't spin. Acutal: 0 - ((2<<64)-10) = 10, which is less than ring size. correct!
             if( w_idx - r_idx_cache >= ring_size ) {
                 while( w_idx - (r_idx_cache = ring->read_idx_.load(std::memory_order_acquire) ) >= ring_size ) asm volatile("pause" ::: "memory");
             }

@@ -26,6 +26,7 @@ Actually using the data is out of scope, right now it's just optionally read int
 ## Future Work
 
 - UDP re-ordering given sequence number without redundant copys to a staging buffer
+- RAII for mmap and shm. Right now they're carefully cleaned up at all returns, but would be cool to not have to manage that.
 - MPSC (multiple market feeds)
 
 # Build
