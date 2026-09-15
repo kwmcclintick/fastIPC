@@ -21,6 +21,7 @@ Actually using the data is out of scope, right now it's just optionally read int
  - Versioning for the ring buffer and a check that aborts if the version is not what's expected
  - Future-proofing buffer and static assert for the ring buffer
  - Simple check + logging in the reader to see if the writer's sequence number jumps ahead
+ - Producer writes PID to ring buffer and consumer checks status when there's a drop
 
 ## Future Work
 
