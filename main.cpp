@@ -12,10 +12,9 @@
 #include <string_view>
 #include <cstdint>
 
-
 const char* kshmName = "/shared_memory";
 constexpr size_t kshmSize = sizeof(MarketMMAP);
-constexpr uint32_t knLoops = 100'000;
+constexpr uint32_t knLoops = 100'000'000;
 constexpr size_t kexpectedVersion = 1;
 
 int writerMain() {
@@ -44,6 +43,7 @@ int writerMain() {
         // write
         uint64_t w_idx = ring->write_idx_.load(std::memory_order_relaxed);        
         uint64_t r_idx_cache = ring->read_idx_.load(std::memory_order_acquire);
+        uint32_t seq_num = 0;
         for( uint32_t i = 0; i < knLoops; ++i ) {
 
             // wait for reader to catch up
@@ -52,7 +52,8 @@ int writerMain() {
             }
             // do the write
             uint64_t slot = w_idx & (ring_size-1);
-	    ring->buffer_[slot] = MarketUpdatePOD{100*i,i,{'A','P','P','L','\0','\0','\0','\0'},1,24,'B',1}; // dummy market data
+            seq_num = (i % 10'000'000 == 0) ? seq_num + 31 : seq_num + 1; // simulate occasional drops: 30 structs every 10M writes
+	    ring->buffer_[slot] = MarketUpdatePOD{1994,seq_num,{'A','P','P','L','\0','\0','\0','\0'},1,24,'B',1}; // dummy market data
             w_idx++;
             ring->write_idx_.store(w_idx, std::memory_order_release);
         }
@@ -85,6 +86,7 @@ int readerMain() {
         // read
         uint64_t r_idx = ring->read_idx_.load(std::memory_order_relaxed);
         uint64_t w_idx_cache = ring->write_idx_.load(std::memory_order_acquire);
+        uint32_t last_seq_num = 0;
         for( int i = 0; i < knLoops; ++i ) {
 
             // wait for writes
@@ -95,7 +97,15 @@ int readerMain() {
 
             // Process market data here
             MarketUpdatePOD mu_pod = ring->buffer_[slot];
-            std::println(std::cout, "POD {}: {}", i, mu_pod);
+            uint32_t seq_num = mu_pod.sequence_num_;
+            if( i != 0 && seq_num != last_seq_num + 1 ) { // detect a gap in seq numbers.
+                // just log for now, but maybe a limit order book or something would do something with this info
+                // we could also need to reorder this for UDP
+                std::println(std::cerr, "Expected seq_num {}, but got {}. Lost {} PODs of data!", last_seq_num+1, seq_num, seq_num - (last_seq_num+1) );
+            }
+            last_seq_num = seq_num;
+            // optional printing of market data, but this will slow down the consumer significantly
+            //std::println(std::cout, "POD {}: {}", i, mu_pod);
             // end process here
 
             r_idx++;
