@@ -96,8 +96,8 @@ int readerMain() {
             uint64_t slot = r_idx & (ring_size-1);
 
             // Process market data here
-            MarketUpdatePOD mu_pod = ring->buffer_[slot];
-            uint32_t seq_num = mu_pod.sequence_num_;
+            MarketUpdatePOD* mu_pod = &ring->buffer_[slot];
+            uint32_t seq_num = mu_pod->sequence_num_;
             if( i != 0 && seq_num != last_seq_num + 1 ) { // detect a gap in seq numbers.
                 // just log for now, but maybe a limit order book or something would do something with this info
                 // we could also need to reorder this for UDP
@@ -105,7 +105,7 @@ int readerMain() {
             }
             last_seq_num = seq_num;
             // optional printing of market data, but this will slow down the consumer significantly
-            //std::println(std::cout, "POD {}: {}", i, mu_pod);
+            //std::println(std::cout, "POD {}: {}", i, *mu_pod);
             // end process here
 
             r_idx++;

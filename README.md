@@ -2,18 +2,30 @@
 
 I wanted to learn some mmap / shm stuff, especially regarding pointer casting and placement new.
 
+This repo started as the core mechanic that popular IPC libraries use: viewing an atomic SPSC ring buffer struct over a shared mmap, with cached indices to send POD structs from a writer(producer) to a reader(consumer).
+
+importantly, the producer constructs data in-place in the mmap, and the reader views directly into the mmap
+
 This simple program can be ran as:
 
 ```bash
 ./main write
+# in another window:
 ./main read
 ```
 
-The writer will write Plain Old Data (POD) structs to a shared mmap, and the reader will read them.
+Actually using the data is out of scope, right now it's just optionally read into a print statement.
 
-The shared memory is interpreted as a SPSC ring buffer where the writer caches the readers index and the reader caches the writers index.
+## Additions since Init
 
-Actually using the data is out of scope, right now it's just read into a print statement.
+ -Versioning for the ring buffer and a check that aborts if the version is not what's expected
+ -Future-proofing buffer and static assert for the ring buffer
+ -Simple check + logging in the reader to see if the writer's sequence number jumps ahead
+
+## Future Work
+
+- UDP re-ordering given sequence number without redundant copys to a staging buffer
+- MPSC (multiple market feeds)
 
 # Build
 
